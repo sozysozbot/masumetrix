@@ -68,19 +68,71 @@ class Board extends React.Component<BoardProps, {}> {
 	}
 }
 
+type BoardDisplayProps = {
+	squares: CellContent[],
+};
+
+class BoardDisplay extends React.Component<BoardDisplayProps, {}> {
+	renderSquare(i: number) {
+		const content = this.props.squares[i];
+		if (content === undefined) {
+			throw new Error("Invalid index passed to renderSquare");
+		}
+		return (
+			<Square
+				value={content}
+				onClick={() => { }}
+			/>
+		);
+	}
+
+	render() {
+		return (
+			<div>
+				{
+					Array.from({ length: HEIGHT }).map(
+						(_, a) =>
+							<div className="board-row">
+								{Array.from({ length: WIDTH }).map((_, b) => this.renderSquare(a * WIDTH + b))}
+							</div>
+					)
+				}
+			</div>
+		);
+	}
+}
+
 type GameState = {
 	squares: CellContent[],
 	day: number,
-	mode: "edit" | "after_submission" | "after_gameset"
+	mode: "edit" | "after_submission_waiting_for_opponent" | "after_gameset",
+	claimed_by_opponent: null,
+	whether_to_finalize: null
+} | {
+	squares: CellContent[],
+	day: number,
+	mode: "compare_and_finalize",
+	claimed_by_opponent: number[],
+	whether_to_finalize: { me: boolean, opponent: boolean }
 }
+
+const getSelectedSquares = (squares: CellContent[]) => squares.reduce(
+	(arr: number[], sq, i) => {
+		if (sq !== null && !sq.is_finalized) { arr.push(i); }
+		return arr
+	}
+	, []
+);
 
 class Game extends React.Component<{}, GameState> {
 	constructor(props: {}) {
 		super(props);
 		this.state = {
-			squares: Array(36).fill(null),
+			squares: Array(WIDTH * HEIGHT).fill(null),
 			day: 1,
-			mode: "edit"
+			mode: "edit",
+			claimed_by_opponent: null,
+			whether_to_finalize: null,
 		};
 	}
 
@@ -88,26 +140,39 @@ class Game extends React.Component<{}, GameState> {
 		const current = this.state;
 		if (current.mode !== "edit") { return; }
 		const squares = current.squares.slice();
-		const selected_squares = squares.reduce(
-			(arr: number[], sq, i) => {
-				if (sq !== null && !sq.is_finalized) { arr.push(i); }
-				return arr
-			}
-			, []
-		);
+		const selected_squares = getSelectedSquares(squares);
 		if (!isSelectable(selected_squares, i) || squares[i]) return;
 		squares[i] = { is_red: true, is_finalized: false };
 		this.setState({ squares })
 	}
 
+	compare_and_finalize(me: number[], opponent: number[]) {
+		const whether_to_finalize = (() => {
+			if (opponent.every(s => !me.includes(s)) && me.every(s => !opponent.includes(s))) {
+				return { me: true, opponent: true }
+			} else {
+				return { me: me.length < opponent.length, opponent: opponent.length < me.length };
+			}
+		})();
+		this.setState({ mode: "compare_and_finalize", claimed_by_opponent: opponent, whether_to_finalize })
+	}
+
 	submit() {
-		this.setState({ mode: "after_submission" })
+		this.setState({ mode: "after_submission_waiting_for_opponent" });
+		const me = getSelectedSquares(this.state.squares);
+
+		// どこに置いたかの情報は bot に漏れてはいけないので、検閲する
+		// We must censor the nonfinalized squares because the bot is not supposed to know that
+		const censored_squares = removeNonfinalized(this.state.squares);
+		setTimeout(() => {
+			this.compare_and_finalize(me, botSubmission(censored_squares))
+		}, Math.random() * 5000 + 1000);
 	}
 
 	eraseAll() {
 		const current = this.state;
 		const squares = current.squares.slice();
-		this.setState({ squares: squares.map(sq => (sq !== null && !sq.is_finalized) ? null : sq) });
+		this.setState({ squares: removeNonfinalized(squares) });
 	}
 
 
@@ -118,7 +183,12 @@ class Game extends React.Component<{}, GameState> {
 		const day = this.state.day;
 
 		const day_str = `Day #${day}`;
-		const status = current.mode === "edit" ? `Choose the contiguous square(s) you want to take` : "";
+		const status = {
+			edit: `Choose the contiguous square(s) you want to take`,
+			after_submission_waiting_for_opponent: `Waiting for the opponent to submit...`,
+			compare_and_finalize: `Comparing the two players' submission:`,
+			after_gameset: `Winner is ${undefined}`
+		}[current.mode];
 
 		const buttons = current.mode === "edit" && current.squares.some(sq => sq !== null && !sq.is_finalized) ? [
 			<li key={"submit"}>
@@ -139,6 +209,28 @@ class Game extends React.Component<{}, GameState> {
 					<div>{status}</div>
 					<ul>{buttons}</ul>
 				</div>
+
+				{current.mode === "compare_and_finalize" ?
+					<div>
+						Your claim:
+						<div className="game-board">
+							<BoardDisplay squares={current.squares} />
+						</div>
+
+						Opponent's claim:
+						<div className="game-board">
+							<BoardDisplay squares={
+								addOpponentsNonfinalized(removeNonfinalized(current.squares), current.claimed_by_opponent)
+							} />
+						</div>
+
+						{
+							current.whether_to_finalize.me ?
+								(current.whether_to_finalize.opponent ? "Both gets what's claimed" : "Only you get what's' claimed") :
+								(current.whether_to_finalize.opponent ? "Only the opponent gets what's claimed" : "Neither gets what's claimed")
+						}
+					</div> : []
+				}
 			</div>
 		);
 	}
@@ -152,12 +244,25 @@ if (!rootDOM) { throw new Error("Cannot find an HTML element with id `root`") }
 const root = ReactDOM.createRoot(rootDOM);
 root.render(<Game />);
 
-function isSelectable(indices: number[], i: number): boolean {
+function addOpponentsNonfinalized(squares: ReadonlyArray<CellContent>, inds: number[]): CellContent[] {
+	const sqs = squares.slice();
+	for (const ind of inds) {
+		sqs[ind] = { is_red: false, is_finalized: false };
+	}
+	return sqs;
+}
+
+function removeNonfinalized(squares: ReadonlyArray<CellContent>): CellContent[] {
+	return squares.map(sq => (sq !== null && !sq.is_finalized) ? null : sq)
+}
+
+function isSelectable(indices: ReadonlyArray<number>, i: number): boolean {
 	if (indices.length === 0) {
 		// まだ何も選択されていないなら、どこをクリックしても連結
 		// If nothing is selected yet, click anywhere and it's contiguous
 		return true;
 	} else {
+		if (indices.includes(i)) return false;
 		return indices.some(ind => isNeighbor(ind, i))
 	}
 }
@@ -173,4 +278,32 @@ function isNeighbor(i1: number, i2: number) {
 	) || (
 			Math.abs(x1 - x2) === 0 && Math.abs(y1 - y2) === 1
 		);
+}
+
+
+function botSubmission(squares: ReadonlyArray<CellContent>): number[] {
+	const rand = Math.random();
+	const attempted_number = rand < 0.2 ? 1 : rand < 0.5 ? 2 : rand < 0.9 ? 3 : 4;
+	try {
+		const initial_square = (() => {
+			for (let i = 0; i < 200; i++) {
+				const ind = Math.random() * WIDTH * HEIGHT | 0;
+				if (!squares[ind]) return ind;
+			}
+			throw new Error("Can't find an empty square");
+		})();
+		const ans = [initial_square];
+
+		outer: for (let j = 0; j < attempted_number - 1; j++) {
+			for (let i = 0; i < 200; i++) {
+				const ind = Math.random() * WIDTH * HEIGHT | 0;
+				if (!isSelectable(ans, ind) || squares[ind]) {
+					continue;
+				};
+				ans.push(ind); continue outer;
+			}
+			break;
+		}
+		return ans;
+	} catch (e: unknown) { return []; }
 }
