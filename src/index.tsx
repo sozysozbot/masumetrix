@@ -307,7 +307,7 @@ function isNeighbor(i1: number, i2: number) {
 
 function botSubmission(squares: ReadonlyArray<CellContent>): number[] {
 	const rand = Math.random();
-	const attempted_number = rand < 0.2 ? 1 : rand < 0.5 ? 2 : rand < 0.9 ? 3 : 4;
+	const attempted_number = rand < 0.05 ? 1 : rand < 0.3 ? 2 : rand < 0.7 ? 3 : rand < 0.95 ? 4 : 8;
 	try {
 		const initial_square = (() => {
 			for (let i = 0; i < 200; i++) {
