@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom/client';
 import type * as CSS from 'csstype';
 import './index.css';
 
+const WIDTH = 6;
+const HEIGHT = 6;
+
 type CellContent = { is_red: boolean, is_finalized: boolean } | null;
 
 type SquareProps = { onClick: () => void, value: CellContent }
@@ -52,54 +55,14 @@ class Board extends React.Component<BoardProps, {}> {
 	render() {
 		return (
 			<div>
-				<div className="board-row">
-					{this.renderSquare(0 * 6 + 0)}
-					{this.renderSquare(0 * 6 + 1)}
-					{this.renderSquare(0 * 6 + 2)}
-					{this.renderSquare(0 * 6 + 3)}
-					{this.renderSquare(0 * 6 + 4)}
-					{this.renderSquare(0 * 6 + 5)}
-				</div>
-				<div className="board-row">
-					{this.renderSquare(1 * 6 + 0)}
-					{this.renderSquare(1 * 6 + 1)}
-					{this.renderSquare(1 * 6 + 2)}
-					{this.renderSquare(1 * 6 + 3)}
-					{this.renderSquare(1 * 6 + 4)}
-					{this.renderSquare(1 * 6 + 5)}
-				</div>
-				<div className="board-row">
-					{this.renderSquare(2 * 6 + 0)}
-					{this.renderSquare(2 * 6 + 1)}
-					{this.renderSquare(2 * 6 + 2)}
-					{this.renderSquare(2 * 6 + 3)}
-					{this.renderSquare(2 * 6 + 4)}
-					{this.renderSquare(2 * 6 + 5)}
-				</div>
-				<div className="board-row">
-					{this.renderSquare(3 * 6 + 0)}
-					{this.renderSquare(3 * 6 + 1)}
-					{this.renderSquare(3 * 6 + 2)}
-					{this.renderSquare(3 * 6 + 3)}
-					{this.renderSquare(3 * 6 + 4)}
-					{this.renderSquare(3 * 6 + 5)}
-				</div>
-				<div className="board-row">
-					{this.renderSquare(4 * 6 + 0)}
-					{this.renderSquare(4 * 6 + 1)}
-					{this.renderSquare(4 * 6 + 2)}
-					{this.renderSquare(4 * 6 + 3)}
-					{this.renderSquare(4 * 6 + 4)}
-					{this.renderSquare(4 * 6 + 5)}
-				</div>
-				<div className="board-row">
-					{this.renderSquare(5 * 6 + 0)}
-					{this.renderSquare(5 * 6 + 1)}
-					{this.renderSquare(5 * 6 + 2)}
-					{this.renderSquare(5 * 6 + 3)}
-					{this.renderSquare(5 * 6 + 4)}
-					{this.renderSquare(5 * 6 + 5)}
-				</div>
+				{
+					Array.from({ length: HEIGHT }).map(
+						(_, a) =>
+							<div className="board-row">
+								{Array.from({ length: WIDTH }).map((_, b) => this.renderSquare(a * WIDTH + b))}
+							</div>
+					)
+				}
 			</div>
 		);
 	}
@@ -199,10 +162,10 @@ function isSelectable(indices: number[], i: number): boolean {
 }
 
 function isNeighbor(i1: number, i2: number) {
-	const x1 = i1 % 6;
-	const y1 = (i1 - x1) / 6;
-	const x2 = i2 % 6;
-	const y2 = (i2 - x2) / 6;
+	const x1 = i1 % WIDTH;
+	const y1 = (i1 - x1) / WIDTH;
+	const x2 = i2 % WIDTH;
+	const y2 = (i2 - x2) / WIDTH;
 
 	return (
 		Math.abs(x1 - x2) === 1 && Math.abs(y1 - y2) === 0
