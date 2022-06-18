@@ -70,8 +70,8 @@ class Board extends React.Component<BoardProps, {}> {
 
 type GameState = {
 	squares: CellContent[],
-	stepNumber: number,
 	day: number,
+	mode: "edit" | "after_submission" | "after_gameset"
 }
 
 class Game extends React.Component<{}, GameState> {
@@ -79,13 +79,14 @@ class Game extends React.Component<{}, GameState> {
 		super(props);
 		this.state = {
 			squares: Array(36).fill(null),
-			stepNumber: 0,
 			day: 1,
+			mode: "edit"
 		};
 	}
 
 	handleClick(i: number) {
 		const current = this.state;
+		if (current.mode !== "edit") { return; }
 		const squares = current.squares.slice();
 		const selected_squares = squares.reduce(
 			(arr: number[], sq, i) => {
@@ -96,11 +97,11 @@ class Game extends React.Component<{}, GameState> {
 		);
 		if (!isSelectable(selected_squares, i) || squares[i]) return;
 		squares[i] = { is_red: true, is_finalized: false };
-		this.setState({ squares, })
+		this.setState({ squares })
 	}
 
 	submit() {
-
+		this.setState({ mode: "after_submission" })
 	}
 
 	eraseAll() {
@@ -117,9 +118,9 @@ class Game extends React.Component<{}, GameState> {
 		const day = this.state.day;
 
 		const day_str = `Day #${day}`;
-		const status = /*winner ? `Winner: ${winner}` :*/ `Choose the contiguous square(s) you want to take`;
+		const status = current.mode === "edit" ? `Choose the contiguous square(s) you want to take` : "";
 
-		const buttons = current.squares.some(sq => sq !== null && !sq.is_finalized) ? [
+		const buttons = current.mode === "edit" && current.squares.some(sq => sq !== null && !sq.is_finalized) ? [
 			<li key={"submit"}>
 				<button onClick={() => this.submit()}>{"submit"}</button>
 			</li>,
