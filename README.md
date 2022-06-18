@@ -1,3 +1,11 @@
+# Masumetrix
+
+Invented by [@mycelithyl](https://twitter.com/mycelithyl) and his friends
+
+Implemented by [@hsjoihs](https://twitter.com/hsjoihs)
+
+<hr>
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
