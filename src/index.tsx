@@ -111,7 +111,7 @@ type GameState = {
 } | {
 	squares: CellContent[],
 	day: number,
-	mode: "compare_and_finalize",
+	mode: "compare_and_ask_for_finalize",
 	claimed_by_opponent: number[],
 	whether_to_finalize: { me: boolean, opponent: boolean }
 }
@@ -146,7 +146,29 @@ class Game extends React.Component<{}, GameState> {
 		this.setState({ squares })
 	}
 
-	compare_and_finalize(me: number[], opponent: number[]) {
+	finalize() {
+		if (this.state.mode !== "compare_and_ask_for_finalize") { return; }
+		let squares = this.state.squares.slice();
+		if (this.state.whether_to_finalize.me) {
+			for (const sq of squares) {
+				if (sq !== null && !sq.is_finalized) {
+					sq.is_finalized = true;
+				}
+			}
+		} else {
+			squares = removeNonfinalized(squares);
+		}
+
+		if (this.state.whether_to_finalize.opponent) {
+			for (const ind of this.state.claimed_by_opponent) {
+				squares[ind] = { is_red: false, is_finalized: true }
+			}
+		}
+
+		this.setState({ mode: "edit", claimed_by_opponent: null, whether_to_finalize: null, squares, day: this.state.day + 1 })
+	}
+
+	compare_and_ask_for_finalize(me: number[], opponent: number[]) {
 		const whether_to_finalize = (() => {
 			if (opponent.every(s => !me.includes(s)) && me.every(s => !opponent.includes(s))) {
 				return { me: true, opponent: true }
@@ -154,10 +176,10 @@ class Game extends React.Component<{}, GameState> {
 				return { me: me.length < opponent.length, opponent: opponent.length < me.length };
 			}
 		})();
-		this.setState({ mode: "compare_and_finalize", claimed_by_opponent: opponent, whether_to_finalize })
+		this.setState({ mode: "compare_and_ask_for_finalize", claimed_by_opponent: opponent, whether_to_finalize })
 	}
 
-	submit() {
+	submit_claim() {
 		this.setState({ mode: "after_submission_waiting_for_opponent" });
 		const me = getSelectedSquares(this.state.squares);
 
@@ -165,7 +187,7 @@ class Game extends React.Component<{}, GameState> {
 		// We must censor the nonfinalized squares because the bot is not supposed to know that
 		const censored_squares = removeNonfinalized(this.state.squares);
 		setTimeout(() => {
-			this.compare_and_finalize(me, botSubmission(censored_squares))
+			this.compare_and_ask_for_finalize(me, botSubmission(censored_squares))
 		}, Math.random() * 5000 + 1000);
 	}
 
@@ -186,13 +208,13 @@ class Game extends React.Component<{}, GameState> {
 		const status = {
 			edit: `Choose the contiguous square(s) you want to take`,
 			after_submission_waiting_for_opponent: `Waiting for the opponent to submit...`,
-			compare_and_finalize: `Comparing the two players' submission:`,
+			compare_and_ask_for_finalize: `Comparing the two players' submission:`,
 			after_gameset: `Winner is ${undefined}`
 		}[current.mode];
 
 		const buttons = current.mode === "edit" && current.squares.some(sq => sq !== null && !sq.is_finalized) ? [
 			<li key={"submit"}>
-				<button onClick={() => this.submit()}>{"submit"}</button>
+				<button onClick={() => this.submit_claim()}>{"submit"}</button>
 			</li>,
 			<li key={"erase_all"}>
 				<button onClick={() => this.eraseAll()}>{"erase all"}</button>
@@ -210,8 +232,8 @@ class Game extends React.Component<{}, GameState> {
 					<ul>{buttons}</ul>
 				</div>
 
-				{current.mode === "compare_and_finalize" ?
-					<div>
+				{current.mode === "compare_and_ask_for_finalize" ?
+					<div id="compare_and_finalize">
 						Your claim:
 						<div className="game-board">
 							<BoardDisplay squares={current.squares} />
@@ -229,6 +251,8 @@ class Game extends React.Component<{}, GameState> {
 								(current.whether_to_finalize.opponent ? "Both gets what's claimed" : "Only you get what's' claimed") :
 								(current.whether_to_finalize.opponent ? "Only the opponent gets what's claimed" : "Neither gets what's claimed")
 						}
+
+						<button onClick={() => this.finalize()}>{"Ok"}</button>
 					</div> : []
 				}
 			</div>
