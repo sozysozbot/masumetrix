@@ -106,9 +106,8 @@ class Board extends React.Component<BoardProps, {}> {
 }
 
 type GameState = {
-	history: { squares: CellContent[] }[],
+	squares: CellContent[],
 	stepNumber: number,
-	xIsNext: boolean,
 	day: number,
 }
 
@@ -116,38 +115,55 @@ class Game extends React.Component<{}, GameState> {
 	constructor(props: {}) {
 		super(props);
 		this.state = {
-			history: [{ squares: Array(36).fill(null) }],
+			squares: Array(36).fill(null),
 			stepNumber: 0,
-			xIsNext: true,
 			day: 1,
 		};
 	}
 
 	handleClick(i: number) {
-		const history = this.state.history.slice(0, this.state.stepNumber + 1);
-		const current = history[history.length - 1];
-		if (!current) {
-			throw new Error("Length of `history` became 0");
-		}
+		const current = this.state;
 		const squares = current.squares.slice();
-		if (calculateWinner(squares) || squares[i]) return;
+		const selected_squares = squares.reduce(
+			(arr: number[], sq, i) => {
+				if (sq !== null && !sq.is_finalized) { arr.push(i); }
+				return arr
+			}
+			, []
+		);
+		if (!isSelectable(selected_squares, i) || squares[i]) return;
 		squares[i] = { is_red: true, is_finalized: false };
-		this.setState({ history: history.concat([{ squares }]), xIsNext: !this.state.xIsNext, stepNumber: history.length })
+		this.setState({ squares, })
+	}
+
+	submit() {
+
+	}
+
+	eraseAll() {
+		const current = this.state;
+		const squares = current.squares.slice();
+		this.setState({ squares: squares.map(sq => (sq !== null && !sq.is_finalized) ? null : sq) });
 	}
 
 
 	render() {
-		const history = this.state.history;
-		const current = history[this.state.stepNumber];
-		if (!current) {
-			throw new Error("Invalid stepNumber");
-		}
-		const winner = calculateWinner(current.squares);
+		const current = this.state;
+		// const winner = calculateWinner(current.squares);
 
 		const day = this.state.day;
 
 		const day_str = `Day #${day}`;
-		const status = winner ? `Winner: ${winner}` : `Choose the square(s) you want to take`;
+		const status = /*winner ? `Winner: ${winner}` :*/ `Choose the contiguous square(s) you want to take`;
+
+		const buttons = current.squares.some(sq => sq !== null && !sq.is_finalized) ? [
+			<li key={"submit"}>
+				<button onClick={() => this.submit()}>{"submit"}</button>
+			</li>,
+			<li key={"erase_all"}>
+				<button onClick={() => this.eraseAll()}>{"erase all"}</button>
+			</li>
+		] : [];
 
 		return (
 			<div className="game">
@@ -157,6 +173,7 @@ class Game extends React.Component<{}, GameState> {
 				<div className="game-info">
 					<div>{day_str}</div>
 					<div>{status}</div>
+					<ul>{buttons}</ul>
 				</div>
 			</div>
 		);
@@ -171,21 +188,25 @@ if (!rootDOM) { throw new Error("Cannot find an HTML element with id `root`") }
 const root = ReactDOM.createRoot(rootDOM);
 root.render(<Game />);
 
-function calculateWinner(squares: ReadonlyArray<CellContent>) {
-	const lines: [number, number, number][] = [
-		[0, 1, 2],
-		[3, 4, 5],
-		[6, 7, 8],
-		[0, 3, 6],
-		[1, 4, 7],
-		[2, 5, 8],
-		[0, 4, 8],
-		[2, 4, 6],
-	];
-	for (const [a, b, c] of lines) {
-		if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-			return squares[a];
-		}
+function isSelectable(indices: number[], i: number): boolean {
+	if (indices.length === 0) {
+		// まだ何も選択されていないなら、どこをクリックしても連結
+		// If nothing is selected yet, click anywhere and it's contiguous
+		return true;
+	} else {
+		return indices.some(ind => isNeighbor(ind, i))
 	}
-	return null;
+}
+
+function isNeighbor(i1: number, i2: number) {
+	const x1 = i1 % 6;
+	const y1 = (i1 - x1) / 6;
+	const x2 = i2 % 6;
+	const y2 = (i2 - x2) / 6;
+
+	return (
+		Math.abs(x1 - x2) === 1 && Math.abs(y1 - y2) === 0
+	) || (
+			Math.abs(x1 - x2) === 0 && Math.abs(y1 - y2) === 1
+		);
 }
